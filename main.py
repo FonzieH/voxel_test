@@ -2,83 +2,84 @@ from scene import Scene
 import taichi as ti
 from taichi.math import *
 
-scene = Scene(voxel_edges=2, exposure=10)
-scene.set_floor(-0.05, (1.0, 1.0, 1.0))
+scene = Scene(voxel_edges=2, exposure=12)
+scene.set_floor(-1.0, (1.0, 1.0, 1.0))
 scene.set_background_color((1.0, 0.9, 1.0))
-scene.set_directional_light((0.7, 1, -1), 0.1, (0.95, 0.95, 0.8))
+scene.set_directional_light((0.7, 1, -0.5), 0.1, (1.0, 1.0, 1.0))
 
 
 @ti.func
-def create_block(pos, size, color, color_noise):
+def create_block(pos, size, color, color_noise, symmetry=False):
+    rotate_matrix = ti.Matrix([[0, 0, 1], [0, 1, 0], [1, 0, 0]])
     for I in ti.grouped(
             ti.ndrange((pos[0], pos[0] + size[0]),
                        (pos[1], pos[1] + size[1]),
                        (pos[2], pos[2] + size[2]))):
         scene.set_voxel(I, 1, color + color_noise * ti.random())
+        if symmetry:
+            scene.set_voxel(rotate_matrix@I, 1, color + color_noise * ti.random())
 
 
 @ti.func
-def create_virtual(pos, size):
+def create_virtual(pos, size, symmetry=False):
+    rotate_matrix = ti.Matrix([[0, 0, 1], [0, 1, 0], [1, 0, 0]])
     for I in ti.grouped(
             ti.ndrange((pos[0], pos[0] + size[0]),
                        (pos[1], pos[1] + size[1]),
                        (pos[2], pos[2] + size[2]))):
         scene.set_voxel(I, 0, vec3(0.5))
+        if symmetry:
+            scene.set_voxel(rotate_matrix@I, 0, vec3(0.5))
+
+
+@ti.func
+def create_decor(pos, width, height, color, symmetry=True):
+
+    create_block(pos, vec3(width, height, 1), color, vec3(0), symmetry)
+    create_virtual(pos + vec3(1, 1, -20), vec3(width - 2, height-2, 31), symmetry)
+
+    i, j = width, height
+    new_pos = pos
+    while i > 4 and j > 2:
+        new_pos = new_pos + vec3(1, j - 1, 0)
+        create_block(new_pos, vec3(i - 2, j - 1, 1), color, vec3(0), symmetry)
+        create_virtual(new_pos + vec3(1, 0, -20), vec3(i - 4, j - 2, 31), symmetry)
+
+        i -= 2
+        j -= 1
 
 @ti.kernel
 def initialize_voxels():
-    color = vec3(0.99, 0.98, 0.9)
+    color = vec3(0.8, 0.94, 1.0)
+    create_block(vec3(-50, -50, -50), vec3(100, 100, 100), color, vec3(0))
 
-    create_block(vec3(0, 0, 0), vec3(50, 50, 50), color, vec3(0))
+    pos = vec3(20, 20, 50)
 
-    create_virtual(vec3(38, 20, 20), vec3(5, 10, 30))
-    create_virtual(vec3(20, 20, 38), vec3(30, 10, 5))
+    create_decor(pos, 9, 5, color)
 
-    create_block(vec3(38, 31, 50), vec3(5, 4, 1), color, vec3(0))
-    create_block(vec3(39, 35, 50), vec3(3, 2, 1), color, vec3(0))
+    create_block(pos + vec3(2, 13, 0), vec3(1, 1, 1), color, vec3(0), symmetry=True)
+    create_block(pos + vec3(4, 15, 0), vec3(1, 1, 1), color, vec3(0), symmetry=True)
+    create_block(pos + vec3(6, 13, 0), vec3(1, 1, 1), color, vec3(0), symmetry=True)
 
-    create_virtual(vec3(39, 32, 20), vec3(3, 2, 31))
-    create_virtual(vec3(40, 34, 20), vec3(1, 2, 31))
+    create_block(pos + vec3(0, -21, 0), vec3(9, 20, 1), color, vec3(0), symmetry=True)
+    create_virtual(pos + vec3(1, -21, -20), vec3(7, 19, 31), symmetry=True)
 
-    create_block(vec3(50, 31, 38), vec3(1, 4, 5), color, vec3(0))
-    create_block(vec3(50, 35, 39), vec3(1, 2, 3), color, vec3(0))
+    create_block(vec3(49, 27, 49), vec3(2, 2, 2), color, vec3(0)) # base height +7
+    create_block(vec3(44, 27, 50), vec3(2, 2, 1), color, vec3(0), symmetry=True)
 
-    create_virtual(vec3(20, 32, 39), vec3(31, 2, 3))
-    create_virtual(vec3(20, 34, 40), vec3(31, 2, 1))
+    create_block(pos + vec3(0, -21, 0), vec3(9, 1, 9), color, vec3(0), symmetry=True)
 
-    scene.set_voxel(vec3(38, 38, 50), 1, color)
-    scene.set_voxel(vec3(40, 40, 50), 1, color)
-    scene.set_voxel(vec3(42, 38, 50), 1, color)
+    for i in range(12):
+        create_block(pos + vec3(9, -21, 0) + vec3(1, 1, 0) * i, ivec3(2, 1, 9), color, vec3(0))
 
-    scene.set_voxel(vec3(50, 38, 38), 1, color)
-    scene.set_voxel(vec3(50, 40, 40), 1, color)
-    scene.set_voxel(vec3(50, 38, 42), 1, color)
+    create_block(pos + vec3(20, -10, 0), ivec3(10, 1, 9), color, vec3(0))
+    create_block(ti.Matrix([[0, 0, 1], [0, 1, 0], [1, 0, 0]])@(pos + vec3(9, -10, 0)), ivec3(9, 1, 30), color, vec3(0))
 
-    scene.set_voxel(vec3(48, 35, 50), 1, color)
-    scene.set_voxel(vec3(50, 35, 48), 1, color)
+    create_block(vec3(54, -1, 28), vec3(1, 15, 1), color, vec3(0))
+    create_block(vec3(57, -1, 28), vec3(1, 15, 1), color, vec3(0))
 
-    for i, j in ti.ndrange((38, 43), (20, 30)):
-        if i == 38 or i == 42 or j == 20 or j == 29:
-            scene.set_voxel(vec3(i, j, 50), 1, color)
-            scene.set_voxel(vec3(50, j, i), 1, color)
-
-    create_block(vec3(38, 20, 50), vec3(5, 1, 5), color, vec3(0))
-    create_block(vec3(50, 20, 38), vec3(5, 1, 5), color, vec3(0))
-
-    create_block(vec3(50, 25, 43), vec3(5, 1, 7), color, vec3(0))
-    create_block(vec3(49, 25, 50), vec3(6, 1, 5), color, vec3(0))
-
-    for i in range(6):
-        create_block(vec3(43, 20, 50) + vec3(1, 1, 0) * i, ivec3(2, 1, 5), color, vec3(0))
-
-    create_block(vec3(52, 20, 42), vec3(1, 7, 1), color, vec3(0))
-    create_block(vec3(54, 20, 42), vec3(1, 7, 1), color, vec3(0))
-
-    for i in range(7 // 2):
-        create_block(vec3(53, 21, 42) + vec3(0, 1, 0) * i * 2, vec3(1, 1, 1), color, vec3(0))
-
-
-
+    for i in range(15 // 2):
+        create_block(vec3(54, 0, 28) + vec3(0, 1, 0) * i * 2, vec3(4, 1, 1), color, vec3(0))
 
 initialize_voxels()
 
