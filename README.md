@@ -1,7 +1,7 @@
 # <a name="title">Taichi Voxel Challenge</a>
 
 <p align="center">
-<img src="res.jpg" width="50%"></img>
+<img src=".\screenshots\res.jpg" width="50%"></img>
 </p>
 
 > Figure: result of `python3 main.py`. 
